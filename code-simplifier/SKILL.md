@@ -10,7 +10,9 @@ description: Simplify and refine existing code for clarity, consistency, and mai
 0. Confirm constraints and decision points (default: conservative)
    - Default goals: preserve behavior, keep diff small, keep edits within the chosen scope
    - If there are multiple reasonable refactor paths, present options + tradeoffs and let the user decide before applying non-trivial changes
-   - If any decision items exist, do a review-first pass (produce the formatted output) and wait for the user’s choice before implementing those items
+   - Default mode: **review-only** (do not modify any files)
+   - Approval gate: only modify files after the user explicitly approves (recommended: user replies with picks + `APPLY`, e.g. `D1=A, APPLY`)
+   - Always do a review-first pass (produce the formatted output) before making changes; wait for approval if it’s not already explicit
 
 1. Establish scope (default: recently modified code)
    - Working tree diff: `git diff`
@@ -26,6 +28,11 @@ description: Simplify and refine existing code for clarity, consistency, and mai
      - `git show --name-only --pretty='' <sha>`
      - `git diff --name-only <base>..<sha>`
      - `git diff --name-only <base-branch>...HEAD`
+
+1.5 Detect language + tooling (apply existing standards first)
+   - Infer language from file extensions and nearby config (`package.json`, `tsconfig.json`, `.eslintrc*`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `pom.xml`, etc.)
+   - Prefer repo-defined conventions (lint/format/typecheck/test) over generic best practices
+   - If the repo has no clear standards, read `references/language-playbooks.md` and apply the relevant section
 
 2. Understand behavior before refactoring
    - Identify inputs/outputs, side effects, error modes, and any invariants
@@ -45,8 +52,14 @@ description: Simplify and refine existing code for clarity, consistency, and mai
    - Keep refactors local; extract helpers only when it improves understanding (avoid “abstraction for its own sake”)
    - Prefer small, mechanical transformations; preserve evaluation order and side-effect ordering
    - Separate two categories of work:
-     - Safe mechanical cleanups: apply directly (no decision needed)
-     - Opinionated/structural refactors: propose as options first
+     - Safe mechanical cleanups: propose as direct edits; apply only after approval
+     - Opinionated/structural refactors: propose as options first; apply only after approval
+   - If you propose architecture/module reshaping, always put it behind a decision (never do it implicitly)
+   - Maintainability & extensibility coaching (only when relevant to the diff):
+     - Prefer domain-driven naming over technical naming
+     - Reduce hardcoding/coupling at external boundaries (behind a decision)
+     - Ensure errors carry context (don’t swallow/erase causes)
+     - Be test-aware: identify existing coverage; propose minimal tests if the repo already uses tests
 
 4. Avoid refactors that change behavior unless explicitly requested
    - Do not change public APIs, wire formats, query semantics, or error contracts
@@ -92,13 +105,16 @@ Rules:
 - Prefer ≤3 decisions and ≤10 total comments
 - If any decisions exist, stop after the review report and ask the user to reply with picks (e.g. `D1=A, D2=B`)
 - Only add `## Appendix (details)` if the user asks; include key `rg` queries, caller/contract checks performed, and any non-obvious semantic pitfalls
+- Omit empty sections (e.g. no nits → omit `## Nits`)
 
 ## Review summary
 
 - Scope: `staged` / `working tree` / `commit` / `range`
 - Files: short list (use “+N more” if long)
 - Status: `REQUEST_CHANGES` (any `P0/P1`) / `COMMENT` (only `P2/P3`) / `APPROVE` (no issues)
+- Language/tooling: 1 line (what you inferred and which repo tools/conventions you’ll follow)
 - Assumptions: 1–3 bullets on behavior/contracts/style guides
+- Mode: `REVIEW_ONLY` (default) / `APPLYING` (only after approval)
 
 ## Decisions (only if needed)
 
@@ -121,6 +137,7 @@ Rules:
 
 ## Next steps
 
-- After picks (if any): list the concrete edits you will apply (group by file, keep it short)
+- If decisions exist: ask the user to reply with picks (e.g. `D1=A`) and whether to `APPLY`
+- After approval: list the concrete edits you will apply (group by file, keep it short)
 - Verify: 1–3 narrow commands (tests/lint/typecheck/build)
 - Coaching: 1–2 actionable habits (omit if none)
